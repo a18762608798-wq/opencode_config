@@ -14,7 +14,7 @@ OpenCode 支持以下平台：
 ## 脚本安装
 
 ```bash
-curl -fsSL https://opencode.ai/install.sh | bash
+curl -fsSL https://opencode.ai/install | bash
 ```
 
 然后激活变量：
@@ -23,12 +23,25 @@ curl -fsSL https://opencode.ai/install.sh | bash
 source ~/.bashrc
 ```
 
+## 网页安装
+
+**注意opencode限制代理每小时访问github数量, 实在不行就从网页好了**
+
+从网页下载: `https://github.com/anomalyco/opencode/releases`, 下载类似于: `
+opencode-linux-x64.tar.gz `
+
+```bash
+tar -xzf opencode-linux-x64.tar.gz
+sudo install -m 755 opencode /usr/local/bin/opencode
+```
+
 ## 验证安装
 
 安装完成后，验证是否成功：
 
 ```bash
 opencode --version
+which opencode
 ```
 
 ## 查看帮助
@@ -47,7 +60,7 @@ opencode run --help
 
 ```bash
 # 使用安装脚本升级
-curl -fsSL https://opencode.ai/install.sh | bash
+curl -fsSL https://opencode.ai/install | bash
 ```
 
 ## 卸载
