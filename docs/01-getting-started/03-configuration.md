@@ -31,9 +31,30 @@ ollama pull qwen2.5-coder:7b
 
 ## 配置文件
 
+Ref to [opencode_rule](https://opencode.ai/docs/rules/)
+
 `~/.config/opencode/` — 只放配置（opencode.jsonc）和插件依赖（package.json + node_modules/）
 
 `opencode.jsonc` 和 `package.json` 是主要需要徐改的文件。
+
+```text
+~/.config/opencode/
+├── opencode.jsonc       # 全局运行配置
+├── tui.jsonc            # 全局 TUI 配置
+├── AGENTS.md            # 全局自然语言规则(**软约束**)
+└── agents/
+    └── test-writer.md   # 自定义 Agent
+```
+
+在项目中使用：
+
+```text
+project/
+├── opencode.jsonc       # 项目运行配置
+├── AGENTS.md            # 项目自然语言规则(优于全局)
+└── .opencode/
+    └── agents/          # 项目专用 Agent
+```
 
 ## 切换模型
 

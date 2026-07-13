@@ -12,7 +12,37 @@
     "question": "allow",
 
     "edit": "ask",
-    "bash": "ask",
+    "bash": {
+      "*": "ask",
+
+      "pwd": "allow",
+
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "git rev-parse*": "allow",
+      "git ls-files*": "allow",
+      "git grep*": "allow",
+      "git branch --show-current": "allow",
+
+      "rg *": "allow",
+      "grep *": "allow",
+
+      "ls": "allow",
+      "ls *": "allow",
+      "tree": "allow",
+      "tree *": "allow",
+
+      "wc *": "allow",
+      "file *": "allow",
+      "stat *": "allow",
+      "du *": "allow",
+      "df *": "allow",
+
+      "which *": "allow",
+      "command -v *": "allow"
+    },
     "task": "ask",
     "skill": "ask",
 

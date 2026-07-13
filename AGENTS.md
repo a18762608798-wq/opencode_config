@@ -1,32 +1,60 @@
-# AGENTS.md
+# 全局工作规则
 
-## About this repo
+## 语言
 
-This is the user's **~/.config/opencode** — the live global config directory for OpenCode. Treat it as active configuration, not a doc/example project.
+* 默认使用中文进行分析、说明和回答。
+* 代码、命令、变量名、函数名、库名和专业术语可保留英文。
+* 除非用户明确要求，不要切换为其他语言。
+* 表达应准确、直接、有条理，避免空泛描述和不必要的重复。
 
-## Key architecture facts
+## 文件编辑
 
-- `opencode.jsonc` — global OpenCode config ($schema: `https://opencode.ai/config.json`); this IS the user's config
-- `package.json` — only dependency is `@opencode-ai/plugin`; no build/test/lint/typecheck commands exist
-- Standard subdirectories may include: `agents/`, `skills/`, `credentials/`, `sessions/`, `logs/`, `mcp.json` — create only as needed
-- Config hierarchy: project-level (`.opencode/`) overrides global (`~/.config/opencode/`)
-- `docs/` and `examples/` are reference material, not the repo's purpose
+修改文件时，尽可能使用 OpenCode 提供的原生文件编辑工具，例如 `edit`、`write`、`apply_patch`，具体以当前环境中可用的工具为准。
 
-## Editing config
+优先使用原生编辑工具的目的，是让文件修改能够以结构化 diff 的形式展示，便于用户在应用修改前进行检查和确认。
 
-- Agent definitions go in `agents/*.json`: `name`, `description`, `model`, `tools`, `systemPrompt`, optional `subagents`
-- Skill files go in `skills/*.md`: Markdown with YAML frontmatter (`name`, `description`, `triggers`)
-- MCP servers go in `mcp.json` under `mcpServers` key
-- Model identifiers use format: `provider/model-name` (e.g. `anthropic/claude-sonnet-4-20250514`)
-- API keys reference env vars via `env:VAR_NAME` syntax
+除非原生编辑工具无法合理完成任务，否则不要通过 Bash 或其他命令行方式直接修改文件，包括但不限于：
 
-## Docs and examples
+* `sed -i`
+* `awk`
+* `perl -pi`
+* `tee`
+* `cat > file`
+* `echo > file`
+* shell 重定向 `>` 或 `>>`
+* Python、Node.js、Ruby 等脚本写入文件
+* 通过命令行批量替换或覆盖文件
+* 运行会隐式改写源文件的自定义脚本
 
-- All docs are in **Chinese (zh-CN)**
-- `docs/index.md` — 入门教程 entry point
-- `examples/` — ready-to-copy agent/skill/MCP examples (NOT the user's actual config, just templates)
+Bash 和其他命令行工具主要用于：
 
-## Git
+* 查看项目状态
+* 搜索和读取信息
+* 检查 Git 状态及差异
+* 运行测试
+* 运行构建
+* 运行 lint
+* 运行类型检查
+* 执行不修改源文件的诊断命令
 
-- `node_modules/` is gitignored — run `npm install` after clone to restore dependencies
-- `.gitignore` covers Node, Python, editor, OS, and build artifacts
+如果确实需要通过命令行修改文件，应在执行前：
+
+1. 说明原生编辑工具无法完成的具体原因。
+2. 说明预计会修改哪些文件。
+3. 尽可能先展示预期修改内容。
+4. 等待用户明确同意后再执行。
+
+不要为了方便而绕过原生编辑工具。
+
+执行格式化器、代码生成器、自动修复命令或其他可能修改文件的命令之前，应明确说明该命令可能产生文件变更。
+
+## 修改原则
+
+* 修改前先理解现有代码和上下文。
+* 只修改完成当前任务所必需的内容。
+* 不进行未经请求的大范围重构。
+* 不随意改变已有接口、行为、文件结构或代码风格。
+* 尽量保持修改规模小、边界清晰、便于审查。
+* 不要用整文件覆盖代替小范围修改，除非确有必要。
+* 修改后检查实际 diff，确认没有意外改动。
+* 不要声称修改、测试或验证已经完成，除非实际执行过相应操作。
