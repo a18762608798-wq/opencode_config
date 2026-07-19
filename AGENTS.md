@@ -58,3 +58,18 @@ Bash 和其他命令行工具主要用于：
 * 不要用整文件覆盖代替小范围修改，除非确有必要。
 * 修改后检查实际 diff，确认没有意外改动。
 * 不要声称修改、测试或验证已经完成，除非实际执行过相应操作。
+
+## 知识整理
+
+在以下情况下调用 `knowledge-organizer` skill 将对话中的新知识点归档到 Obsidian 知识库：
+
+* 用户说"整理新知识"、"整理知识点"、"总结知识点"、"归档知识"等类似命令。
+* 用户执行 `git commit` 或 `git push` 时。
+* 对话中涉及 Julia、Python、量子计算、量子力学、数学或英语的学习内容，用户表现出记录意图时。
+
+归档目标：
+* 编程知识（Python/Julia）→ `~/sync/computer/code/program/{language}_note/00_inbox/`
+* 理论知识（量子计算/量子力学/数学）→ 对应学科笔记库的 `00_inbox/`
+* 英语词汇 → `~/sync/tool/word_learn/00_inbox/`
+
+笔记格式为中文 Markdown，包含日期、分类、标签、背景、内容和要点。

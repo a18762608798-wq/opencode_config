@@ -1,0 +1,53 @@
+{
+  "skill_name": "knowledge-organizer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "以下是我们之前的对话，请根据对话内容整理新知识。\n\n--- 对话开始 ---\n\nUser: 我在用 Julia 做数值计算，遇到了一个奇怪的性能问题。我定义了一个函数 `f(x) = x^2 + sin(x)`，然后对一个大数组调用 `f.(arr)`，发现比 Python 的 numpy 还慢，为什么？\n\nAssistant: 问题在于你的 `f(x)` 返回类型不稳定。Julia 的编译器需要知道返回类型才能生成高效代码。`x^2` 和 `sin(x)` 都是 Float64，看起来没问题，但 `sin(x)` 对于整数输入会返回不同类型的值。你可以用 `@code_warntype f(1.0)` 检查。另外，对于这种简单的逐元素操作，推荐用 `@.` 宏：`@. arr^2 + sin(arr)`，它会自动融合广播操作，避免分配临时数组。\n\nUser: 原来如此，`@.` 宏确实快了很多。那如果我有一个自定义类型 `struct Particle{T} x::T; v::T end`，我想对不同类型的粒子做批量操作，Julia 的多重派发应该怎么用？\n\nAssistant: 多重派发是 Julia 的核心设计。你可以定义泛型函数，然后为不同参数类型组合提供专门实现。例如：`function simulate(p::Particle{Float64}) ... end` 和 `function simulate(p::Particle{Float32}) ... end`。但更好的做法是写 `function simulate(p::Particle{T}) where T ... end`，利用参数类型实现泛型代码。Julia 的 JIT 编译器会为每个具体类型组合生成专门的机器码，这就是它高性能的来源。\n\nUser: 明白了。还有一个问题，Julia 的 `Val` 类型是干什么的？我看到很多包里都有 `Val{2}()` 这种用法。\n\nAssistant: `Val` 是 Julia 的**值类型**，用来把值信息编码到类型系统中，以便编译器在编译时做特化。比如 `Val{2}()` 把数字 2 作为类型参数传递，这样编译器在编译 `f(::Val{N}) where N` 时就知道 N 的具体值，可以做常量折叠等优化。常用于在编译时选择不同算法路径，比如选择矩阵乘法的分块大小。注意 `Val` 只适用于小整数值，大值会拖慢编译。\n\n--- 对话结束 ---\n\n整理新知识",
+      "expected_output": "应在 ~/sync/computer/code/program/julia_note/00_inbox/ 下创建 3 个 markdown 文件，分别覆盖：@. 宏与广播融合、多重派发与参数类型、Val 值类型三个知识点。文件内容为中文，包含日期、分类、标签、背景、内容和要点。",
+      "files": [],
+      "expectations": [
+        "在 julia_note/00_inbox/ 下创建了至少 2 个 .md 文件",
+        "笔记内容使用中文撰写",
+        "笔记文件包含日期信息",
+        "笔记文件的分类标记为编程/Julia",
+        "至少有一个笔记涉及 @. 宏或广播融合",
+        "包含实际可运行的 Julia 代码片段",
+        "文件命名使用时间戳前缀格式（如 20260719_000001_xxx.md）",
+        "笔记具有结构化段落（背景、内容、要点等分节）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "以下是我们之前的对话，请根据对话内容整理新知识。\n\n--- 对话开始 ---\n\nUser: 我对量子计算刚入门，能不能解释一下量子比特和经典比特的本质区别？\n\nAssistant: 经典比特只能是 0 或 1，而量子比特处于 0 和 1 的叠加态 —— 这是最核心的区别。数学上，一个量子比特的状态是 |ψ⟩ = α|0⟩ + β|1⟩，其中 α 和 β 是复数，满足 |α|² + |β|² = 1。这里的关键不是\"同时处于 0 和 1\"，而是测量的概率性 —— 测量时以 |α|² 的概率得到 0，|β|² 的概率得到 1。\n\nUser: 那为什么量子计算被认为比经典计算快？比如 Grover 搜索算法。\n\nAssistant: 量子加速的关键在于量子并行性和量子干涉。以 Grover 算法为例：经典搜索无序数据库需要 O(N) 次查询，Grover 算法只需要 O(√N)。原理是：首先用 Hadamard 门制备所有状态的等权叠加，然后反复应用 Grover 迭代（Oracle + 扩散算子）。Oracle 翻转目标态的相位，扩散算子将所有状态的振幅绕平均振幅翻转。经过约 π√N/4 次迭代后，目标态的振幅接近 1。量子干涉在这个过程中扮演了关键角色 —— 它让错误答案的振幅相消干涉，让正确答案的振幅相长干涉。这种全局的振幅操控是经典计算无法做到的。\n\nUser: 那量子纠缠在这个过程中起什么作用？\n\nAssistant: 纠缠是量子系统独有的关联，表现为复合系统的状态不能分解为各个子系统的张量积。例如 Bell 态 |Φ⁺⟩ = (|00⟩ + |11⟩)/√2，对第一个量子比特的测量会瞬间决定第二个量子比特的状态。在 Grover 算法中，纠缠不是必须的 —— 它可以在单量子比特系统上运行。但纠缠是许多其他量子算法（如 Shor 算法、量子隐形传态）的关键资源。更一般地说，量子纠缠是量子关联的最强形式，超越了经典关联的 Bell 不等式上限。\n\n--- 对话结束 ---\n\n整理知识点",
+      "expected_output": "应在 ~/sync/theory/physics/contemporary_physics/quant_comp_note/00_inbox/ 下创建 3 个 markdown 文件，分别覆盖：量子比特的叠加态与数学表示、Grover 搜索算法与量子加速原理、量子纠缠及其在量子计算中的角色。",
+      "files": [],
+      "expectations": [
+        "在 quant_comp_note/00_inbox/ 下创建了至少 2 个 .md 文件",
+        "笔记内容使用中文撰写",
+        "至少一个笔记的分类标记为理论/量子计算",
+        "笔记中包含了数学公式",
+        "至少有一个笔记涉及 Grover 算法或量子加速原理",
+        "笔记中有日期和标签信息",
+        "文件数量不超过 4 个（避免生成对话中未涉及的虚构知识点）",
+        "所有笔记主题都在对话中有对应出处，不包含虚构内容（如 VQE、表面码等）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "以下是我们之前的对话，请根据对话内容整理新知识。\n\n--- 对话开始 ---\n\nUser: 我在用 Python 的 pandas 处理一个 CSV 数据，文件有 50 万行。我想按 'category' 列分组，然后对每组的 'amount' 列做聚合，同时计算均值和标准差。代码怎么写？\n\nAssistant: 可以用 `df.groupby('category')['amount'].agg(['mean', 'std'])`。如果数据量很大导致内存不够，可以用 `chunksize` 参数分块读取 CSV：`pd.read_csv('data.csv', chunksize=50000)`，然后在循环中逐块处理再合并结果。另外，如果只需要均值和标准差而不需要全部原始数据，`agg` 的内存效率比先 `groupby` 再分别算要好。\n\nUser: 好的。那 `agg` 和 `transform` 有什么区别？\n\nAssistant: `agg`（aggregate）返回每组的聚合标量值，结果的行数等于分组数；`transform` 返回与原始 DataFrame 相同长度的结果，把聚合值广播回每一行。典型用法：`df['zscore'] = df.groupby('category')['amount'].transform(lambda x: (x - x.mean()) / x.std())` 可以在不丢失原始数据行的前提下计算每个值在组内的 z-score。`transform` 的结果可以像普通列一样加回原 DataFrame。\n\nUser: 明白了。我还有最后一个问题，pandas 的 `apply` 什么时候该用，什么时候该避免？\n\nAssistant: `apply` 很灵活但很慢，本质上是 Python 层面的逐行/逐组循环，没有向量化。对于常见操作（求和、均值、计数等），优先用内置方法（`.sum()`, `.mean()`）或 `agg`。只有当操作逻辑非常特殊、无法用内置方法表达时才用 `apply`。一个常见的优化是：如果 `apply` 的操作可以写成多个向量化步骤的组合，就别用 apply。比如 `df.groupby('key').apply(lambda g: g['a'].sum() / g['b'].mean())` 可以改成先分开聚合再合并，快很多。\n\n--- 对话结束 ---\n\ngit add . && git commit -m \"feat: add data analysis script\"",
+      "expected_output": "应在 ~/sync/computer/code/program/python_note/00_inbox/ 下创建 3 个 markdown 文件，分别覆盖：pandas 分组聚合 agg、transform 用法、apply 性能与替代方案。",
+      "files": [],
+      "expectations": [
+        "在 python_note/00_inbox/ 下创建了至少 2 个 .md 文件",
+        "笔记内容使用中文撰写",
+        "至少一个笔记涉及 agg 与 transform 的区别",
+        "至少一个笔记涉及 apply 的性能陷阱",
+        "所有笔记文件都包含日期和分类信息",
+        "包含可运行的 Python 代码片段",
+        "文件命名使用时间戳前缀格式",
+        "笔记具有结构化段落（背景、内容、要点等分节）"
+      ]
+    }
+  ]
+}

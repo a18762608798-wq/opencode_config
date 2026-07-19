@@ -27,3 +27,6 @@ build/
 # Environment
 .env
 .env.local
+
+# Session files
+session-*.md

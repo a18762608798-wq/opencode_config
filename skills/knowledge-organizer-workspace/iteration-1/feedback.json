@@ -1,0 +1,35 @@
+{
+  "reviews": [
+    {
+      "run_id": "eval-0-with_skill",
+      "feedback": "很好，符合预期",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    },
+    {
+      "run_id": "eval-0-without_skill",
+      "feedback": "",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    },
+    {
+      "run_id": "eval-1-with_skill",
+      "feedback": "",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    },
+    {
+      "run_id": "eval-1-without_skill",
+      "feedback": "",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    },
+    {
+      "run_id": "eval-2-with_skill",
+      "feedback": "",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    },
+    {
+      "run_id": "eval-2-without_skill",
+      "feedback": "",
+      "timestamp": "2026-07-19T12:50:59.058Z"
+    }
+  ],
+  "status": "complete"
+}

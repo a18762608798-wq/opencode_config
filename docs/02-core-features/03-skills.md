@@ -15,14 +15,14 @@ Skill（技能）是 OpenCode 中的**可复用能力模块**。它像是给 Age
 
 ## Skill 的结构
 
-一个 Skill 由一个 Markdown 文件定义：
+一个 Skill 由一个 文件夹定义, 至少需要一个SKILL.md文件：
 
 ```
-.opencode/skills/
-├── git-workflow.md
-├── api-design.md
-├── docker-deploy.md
-└── database-migration.md
+opencode/skills/
+├── git_workflow/SKILL.md
+├── api-design/SKILL.md
+├── docker_deploy/SKILL.md
+└── database_migration/SKILL.md
 ```
 
 ## 内置 Skills

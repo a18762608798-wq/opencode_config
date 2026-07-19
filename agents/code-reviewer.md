@@ -1,6 +1,6 @@
 ---
 description: 只读项目分析师。当主 agent 在规划或修改之前需要理解项目结构、架构、执行流程、依赖关系、约定或相关文件时使用。
-mode: subagent
+mode: all 
 model: deepseek/deepseek-v4-flash
 temperature: 0.1
 permission: 

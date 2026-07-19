@@ -1,5 +1,5 @@
 ---
-name: git_workflow
+name: git-workflow
 description: 规范化 Git 工作流程。用于提交代码、创建或切换分支、生成 Conventional Commit、执行 merge 或 rebase，以及准备推送和 Pull Request。
 ---
 
