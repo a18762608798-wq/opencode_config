@@ -8,6 +8,8 @@ Agent 是 OpenCode 的灵魂。虽然内置的 Build Agent 能处理大多数任
 
 ## Agent 配置完整参考
 
+> 这里agent的配置现在已经推荐markdown模式，待更新.
+
 ### JSON 配置结构
 
 ```jsonc

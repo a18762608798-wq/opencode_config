@@ -25,18 +25,46 @@ Skill（技能）是 OpenCode 中的**可复用能力模块**。它像是给 Age
 └── database-migration.md
 ```
 
-### Skill 文件格式
+## 内置 Skills
+
+OpenCode 自带一些常用 Skills：
+
+| Skill | 功能 |
+|-------|------|
+| `file-editor` | 文件编辑能力 |
+| `code-searcher` | 代码搜索能力 |
+| `command-runner` | 命令执行能力 |
+| `web-researcher` | 网络搜索能力 |
+
+
+## Skill 文件格式
+
+### 文件名
+
+必须是小写字母、数字和连字符，并且与目录名一致：
+
+### 有效字段
+
+```text
+name
+description
+license
+compatibility
+metadata:
+  author: mintusr
+  category: scientific-computing
+  audience: researchers
+  version: "1.0"
+```
+
+最少包括前两个；后两个分别是写运行环境或依赖以及自定义的标签
+
+### case
 
 ````markdown
 ---
-name: Git Workflow
-description: 规范化的 Git 工作流程操作
-triggers:
-  - "提交代码"
-  - "commit"
-  - "创建分支"
-  - "merge"
-  - "rebase"
+name: git_workflow
+description: 规范化 Git 工作流程。用于提交代码、创建或切换分支、生成 Conventional Commit、执行 merge 或 rebase，以及准备推送和 Pull Request。
 ---
 
 # Git Workflow Skill
@@ -79,160 +107,6 @@ triggers:
 1. `git add <files>`
 2. `git commit -m "feat(scope): description"`
 3. `git push origin feat/xxx`
-````
-
-## 内置 Skills
-
-OpenCode 自带一些常用 Skills：
-
-| Skill | 功能 |
-|-------|------|
-| `file-editor` | 文件编辑能力 |
-| `code-searcher` | 代码搜索能力 |
-| `command-runner` | 命令执行能力 |
-| `web-researcher` | 网络搜索能力 |
-
-## 创建自定义 Skill
-
-### 示例一：API 设计 Skill
-
-````markdown
----
-name: API Design
-description: RESTful API 设计规范和最佳实践
-triggers:
-  - "设计 API"
-  - "创建接口"
-  - "REST"
-  - "endpoint"
----
-
-# API Design Skill
-
-## RESTful 规范
-
-### URL 设计
-- 使用复数名词：`/users` ✓  `/getUsers` ✗
-- 层级关系：`/users/{id}/posts`
-- 小写 + 连字符：`/user-profiles` ✓  `/userProfiles` ✗
-
-### HTTP 方法
-| 方法   | 操作   | 示例              |
-|--------|--------|-------------------|
-| GET    | 查询   | GET /users        |
-| POST   | 创建   | POST /users       |
-| PUT    | 全量更新 | PUT /users/{id}  |
-| PATCH  | 部分更新 | PATCH /users/{id}|
-| DELETE | 删除   | DELETE /users/{id}|
-
-### 状态码
-- 200: 成功
-- 201: 创建成功
-- 400: 请求参数错误
-- 401: 未认证
-- 403: 无权限
-- 404: 资源不存在
-- 500: 服务器错误
-
-### 响应格式
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {},
-  "timestamp": "2026-01-01T00:00:00Z"
-}
-```
-
-### 错误响应
-```json
-{
-  "code": 40001,
-  "message": "用户名已存在",
-  "details": {
-    "field": "username",
-    "reason": "duplicate"
-  }
-}
-```
-````
-
-### 示例二：Docker 部署 Skill
-
-````markdown
----
-name: Docker Deploy
-description: Docker 容器化部署流程
-triggers:
-  - "docker"
-  - "部署"
-  - "容器化"
-  - "Dockerfile"
----
-
-# Docker Deploy Skill
-
-## Dockerfile 最佳实践
-
-### 多阶段构建
-```dockerfile
-# 构建阶段
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-
-# 运行阶段
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-EXPOSE 3000
-CMD ["node", "dist/index.js"]
-```
-
-### docker-compose.yml 模板
-```yaml
-version: "3.8"
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-    depends_on:
-      - db
-      - redis
-    restart: unless-stopped
-
-  db:
-    image: postgres:16-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: myapp
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redisdata:/data
-
-volumes:
-  pgdata:
-  redisdata:
-```
-
-## 安全注意事项
-
-- ❌ 不要在 Dockerfile 中硬编码密钥
-- ✅ 使用 Docker secrets 或环境变量
-- ✅ 以非 root 用户运行容器
-- ✅ 定期更新基础镜像
 ````
 
 ## Skill 的触发机制

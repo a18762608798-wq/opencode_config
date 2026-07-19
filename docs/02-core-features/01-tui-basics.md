@@ -58,10 +58,10 @@ OpenCode 的 TUI（Text User Interface）是主要交互界面。启动后你会
 | 命令 | 说明 | 示例 |
 |------|------|------|
 | `/help` | 显示全部命令 | `/help` |
-| `/init` | 初始化 AGENTS.md | `/init` |
+| `/init` | **初始化 AGENTS.md** | `/init` |
 | `/connect` | 配置 LLM 提供商 | `/connect` |
 | `/model` | 切换模型 | `/model` |
-| `/agent` | 切换 Agent | `/agent` |
+| `/agent` | **切换 Agent** | `/agent` |
 | `/sessions` | 查看/切换会话 | `/sessions` |
 | `/new` | 新建会话 | `/new` |
 | `/timeline` | 查看会话时间线 | `/timeline` |
