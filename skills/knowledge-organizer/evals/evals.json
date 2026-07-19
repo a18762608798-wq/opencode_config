@@ -48,6 +48,22 @@
         "文件命名使用时间戳前缀格式",
         "笔记具有结构化段落（背景、内容、要点等分节）"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "以下是我们之前的对话，请根据对话内容整理新知识。\n\n--- 对话开始 ---\n\nUser: 我 git rebase 的时候遇到了冲突，搞了半天不知道怎么整理提交。`git rebase -i` 里面的 pick、squash、fixup 分别是什么意思？\n\nAssistant: `git rebase -i` 的交互式界面里，每一行代表一个 commit。`pick` 表示保留这个 commit 不变（默认操作）。`squash` 表示把这个 commit 合并到前一个 commit，同时把两个 commit 的 message 合并在一起让你重新编辑。`fixup` 类似 squash 也合并到前一个 commit，但会丢弃这个 commit 的 message，只保留前一个的 message。实战中我建议：修复性小改动一般用 fixup，因为 message 本身没意义；有意义的功能迭代用 squash，保留所有 message 方便你重写一个更清晰的最终 message。另外注意，rebase 会改写历史，如果分支已经 push 过就不要对已推送的 commit 用 rebase。\n\nUser: 明白了。那我还有个问题，`git reset` 和 `git revert` 的区别是什么？\n\nAssistant: `git reset` 是移动 HEAD 指针，从历史中\"删除\" commit —— 比如 `git reset HEAD~1` 会撤销最近一次 commit，把改动保留在工作区。这在本地修改还没 push 时很方便。`git revert` 则创建一个新的 commit 来撤销之前的改动，不改变历史 —— 这是处理已推送代码的安全方式。核心区别：reset 改历史，revert 追加历史。还有个细节是 reset 有三种模式：`--soft`（只移动 HEAD，保留暂存区和工作区）、`--mixed`（默认，移动 HEAD 并清空暂存区，保留工作区）、`--hard`（全部丢弃，危险！）。\n\nUser: 说说 git stash 吧，我经常有未完成的改动需要临时切分支，但不大会用 stash。\n\nAssistant: `git stash` 会把工作区和暂存区的改动临时保存到栈中，清空工作区让你干净地切换分支。基础操作：`git stash` 保存，`git stash pop` 恢复并删除栈记录，`git stash list` 查看所有暂存。进阶用法：`git stash push -m \"描述信息\"` 给 stash 加描述，方便后面找；`git stash pop stash@{1}` 恢复指定 stash；`git stash -p` 交互式选择要 stash 哪些改动（很有用，你可以只 stash 部分文件）。还有个容易踩的坑：新建的未跟踪文件 stash 默认不会保存，需要用 `git stash -u` 或 `git stash --include-untracked`。\n\n--- 对话结束 ---\n\ngit add . && git commit -m \"docs: add workflow guide\"",
+      "expected_output": "应在 ~/sync/computer/code/opt/git/00_inbox/ 下创建 3 个 markdown 文件，分别覆盖：git rebase -i 的 pick/squash/fixup 操作、git reset 与 revert 的区别、git stash 的使用方法。",
+      "files": [],
+      "expectations": [
+        "在 git/00_inbox/ 下创建了至少 2 个 .md 文件",
+        "笔记内容使用中文撰写",
+        "至少一个笔记的分类标记为工具/Git",
+        "至少有一个笔记涉及 git rebase 的 pick/squash/fixup",
+        "至少有一个笔记涉及 git reset 和 revert 的区别",
+        "笔记中有日期和标签信息",
+        "文件命名使用时间戳前缀格式",
+        "笔记具有结构化段落（背景、内容、要点等分节）"
+      ]
     }
   ]
 }

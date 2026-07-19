@@ -1,6 +1,6 @@
 ---
 name: knowledge-organizer
-description: 从对话中提取和整理知识点，分类归档到 Obsidian 知识库。触发条件：(1) 用户说"整理新知识"、"整理知识点"、"总结知识点"、"归档知识"等类似命令；(2) 对话中出现 git commit 或 git push 请求时。整理编程知识（Julia/Python）到对应语言笔记库的 00_inbox/，整理理论知识（量子计算/量子力学/数学）到对应学科笔记库的 00_inbox/，输出中文 Markdown 格式。
+description: 从对话中提取和整理知识点，分类归档到 Obsidian 知识库。触发条件：(1) 用户说"整理新知识"、"整理知识点"、"总结知识点"、"归档知识"等类似命令；(2) 对话中出现 git commit 或 git push 请求时。整理编程知识（Julia/Python）和工具知识（Git）到对应笔记库的 00_inbox/，整理理论知识（量子计算/量子力学/数学）到对应学科笔记库的 00_inbox/，输出中文 Markdown 格式。
 ---
 
 # 知识整理 Skill
@@ -20,6 +20,7 @@ description: 从对话中提取和整理知识点，分类归档到 Obsidian 知
 |------|------|----------|
 | 编程 | Python | `~/sync/computer/code/program/python_note/00_inbox/` |
 | 编程 | Julia | `~/sync/computer/code/program/julia_note/00_inbox/` |
+| 工具 | Git | `~/sync/computer/code/opt/git/00_inbox/` |
 | 理论 | 量子计算 | `~/sync/theory/physics/contemporary_physics/quant_comp_note/00_inbox/` |
 | 理论 | 量子力学 | `~/sync/theory/physics/mechanics/Quantum mechanics/00_inbox/` |
 | 理论 | 数学 | `~/sync/theory/math_note/00_inbox/` |
@@ -35,6 +36,7 @@ description: 从对话中提取和整理知识点，分类归档到 Obsidian 知
 - 新学习的编程概念、语法特性、库的用法
 - 解决某个问题的方法或技巧
 - 代码实现中的关键设计决策与原因
+- Git 命令的使用技巧、分支策略、工作流、常见问题的处理方法
 - 量子计算/量子力学中的概念、公式、算法
 - 对话中讨论的理论推导或原理解释
 - 调试过程中发现的坑和解决办法
@@ -63,7 +65,7 @@ description: 从对话中提取和整理知识点，分类归档到 Obsidian 知
 # [知识点标题]
 
 **日期**: YYYY-MM-DD HH:MM
-**分类**: [编程/Python | 编程/Julia | 理论/量子计算 | 理论/量子力学 | 理论/数学 | 语言/英语]
+**分类**: [编程/Python | 编程/Julia | 工具/Git | 理论/量子计算 | 理论/量子力学 | 理论/数学 | 语言/英语]
 **标签**: #tag1 #tag2
 
 ## 背景
