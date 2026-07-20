@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,16 +18,58 @@ from pathlib import Path
 
 from scripts.utils import parse_skill_md
 
-# Custom env var to prevent recursive opencode nesting.
+# Custom env var — set on child processes so that if they somehow trigger
+# the skill-creator skill recursively, the outer session can detect it.
 CHILD_ENV = "SKILL_CREATOR_EVAL_CHILD"
 
 
-def _call_opencode(prompt: str, model: str | None, timeout: int = 300) -> str:
-    """Run `opencode run --format json` with the prompt as a temp file.
+def _isolated_env(tmp: Path) -> dict[str, str]:
+    """Build env vars for an isolated ``opencode run`` subprocess.
 
-    The full prompt is written to a temp file and attached via --file because
-    it often embeds the full SKILL.md body and can exceed comfortable argv length.
-    Parses JSON event stream to extract the final text response.
+    Redirects HOME to an empty temp directory so that no globally-installed
+    skills or config files are discoverable.  Auth credentials are copied
+    from the real home so the provider API key remains available.
+    """
+    temp_home = tmp / "home"
+    temp_home.mkdir()
+
+    real_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+    if real_auth.exists():
+        temp_data = temp_home / ".local" / "share" / "opencode"
+        temp_data.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(real_auth, temp_data / "auth.json")
+
+    return {
+        "HOME": str(temp_home),
+        "XDG_CONFIG_HOME": str(temp_home / ".config"),
+        "XDG_DATA_HOME": str(temp_home / ".local" / "share"),
+        CHILD_ENV: "1",
+        "OPENCODE_DISABLE_CLAUDE_CODE": "true",
+        "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS": "true",
+        "OPENCODE_DISABLE_CLAUDE_CODE_PROMPT": "true",
+    }
+
+
+_AGENT_CONFIG = json.dumps(
+    {
+        "agent": {
+            "skill-description-improver": {
+                "mode": "primary",
+                "tools": {"skill": False},
+                "permission": {"*": "allow"},
+            }
+        }
+    }
+)
+
+
+def _call_opencode(prompt: str, model: str | None, timeout: int = 300) -> str:
+    """Run a description-improvement prompt in an isolated environment.
+
+    Uses a dedicated agent (``skill-description-improver``) that has the
+    ``skill`` tool disabled so the subprocess can never trigger the
+    skill-creator skill recursively.  HOME is redirected to a blank temp
+    directory for isolation.
     """
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".md", prefix="skill_improve_", delete=False
@@ -34,23 +77,32 @@ def _call_opencode(prompt: str, model: str | None, timeout: int = 300) -> str:
         tmp.write(prompt)
         tmp_path = tmp.name
 
+    work_dir = tempfile.mkdtemp(prefix="skill_improve_work_")
     try:
         cmd = [
             "opencode",
+            "--pure",
             "run",
             "Improve the skill description according to the attached instructions.",
             "--file", tmp_path,
             "--format", "json",
+            "--dir", str(work_dir),
+            "--agent", "skill-description-improver",
         ]
         if model:
             cmd.extend(["--model", model])
 
-        env = {**os.environ, CHILD_ENV: "1"}
+        env = {
+            **os.environ,
+            **_isolated_env(Path(work_dir)),
+            "OPENCODE_CONFIG_CONTENT": _AGENT_CONFIG,
+        }
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
+            cwd=str(work_dir),
             env=env,
             timeout=timeout,
         )
@@ -59,12 +111,10 @@ def _call_opencode(prompt: str, model: str | None, timeout: int = 300) -> str:
                 f"opencode run exited {result.returncode}\nstderr: {result.stderr}"
             )
 
-        # Extract text from JSON event stream.
-        # OpenCode --format json outputs ndjson; the final response
-        # is carried by text / assistant / result events.
         return _extract_text_from_json_events(result.stdout)
     finally:
         os.unlink(tmp_path)
+        shutil.rmtree(work_dir)
 
 
 def _extract_text_from_json_events(stdout: str) -> str:
@@ -202,10 +252,11 @@ Based on the failures, write a new and improved description that is more likely 
 Concretely, your description should not be more than about 100-200 words, even if that comes at the cost of accuracy. There is a hard limit of 1024 characters — descriptions over that will be truncated, so stay comfortably under it.
 
 Here are some tips that we've found to work well in writing these descriptions:
-- The skill should be phrased in the imperative -- "Use this skill for" rather than "this skill does"
-- The skill description should focus on the user's intent, what they are trying to achieve, vs. the implementation details of how the skill works.
+- The description should clearly express: (1) user intent, (2) applicable task boundaries, (3) distinctive capabilities, and (4) adjacent tasks that are easily confused but should NOT trigger this skill.
+- Focus on the user's intent, what they are trying to achieve, vs. the implementation details of how the skill works.
 - The description competes with other skills for opencode's attention — make it distinctive and immediately recognizable.
-- If you're getting lots of failures after repeated attempts, change things up. Try different sentence structures or wordings.
+- OpenCode shows available skills as a list in the system prompt; the model decides whether to call the `skill` tool based on the description. Be specific but concise.
+- If you're getting lots of failures after repeated attempts, change things up dramatically. Try completely different sentence structures or wordings rather than tweaking adjectives.
 
 I'd encourage you to be creative and mix up the style in different iterations since you'll have multiple opportunities to try different approaches and we'll just grab the highest-scoring one at the end. 
 

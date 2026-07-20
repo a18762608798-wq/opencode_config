@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Run the eval + improve loop until all pass or max iterations reached.
+"""Evaluate a skill description against a set of trigger queries.
 
-Combines run_eval.py and improve_description.py in a loop, tracking history
-and returning the best description found. Supports train/test split to prevent
-overfitting.
+Runs each query through opencode and reports whether the skill was
+invoked.  Optionally generates a *candidate* improved description via
+an LLM call — the result is for human review only and is never applied
+automatically.
 """
 
 import argparse
 import json
-import random
 import sys
 import tempfile
 import time
@@ -17,246 +17,204 @@ from pathlib import Path
 
 from scripts.generate_report import generate_html
 from scripts.improve_description import improve_description
-from scripts.run_eval import find_project_root, run_eval
+from scripts.run_eval import run_eval
 from scripts.utils import parse_skill_md
 
 
-def split_eval_set(eval_set: list[dict], holdout: float, seed: int = 42) -> tuple[list[dict], list[dict]]:
-    """Split eval set into train and test sets, stratified by should_trigger."""
-    random.seed(seed)
+def _calc_metrics(results: list[dict]) -> dict:
+    """Compute recall, specificity, and balanced_accuracy.
 
-    # Separate by should_trigger
-    trigger = [e for e in eval_set if e["should_trigger"]]
-    no_trigger = [e for e in eval_set if not e["should_trigger"]]
+    Queries marked ``"inconclusive"`` are excluded from scoring.
+    """
+    scored = [r for r in results if r.get("eval_status") != "inconclusive"]
+    if not scored:
+        return {
+            "recall": 0.0,
+            "specificity": 0.0,
+            "balanced_accuracy": 0.0,
+            "tp": 0,
+            "tn": 0,
+            "fp": 0,
+            "fn": 0,
+            "inconclusive": len(results),
+        }
+    pos = [r for r in scored if r["should_trigger"]]
+    neg = [r for r in scored if not r["should_trigger"]]
+    tp = sum(1 for r in pos if r["pass"])
+    tn = sum(1 for r in neg if r["pass"])
+    recall = tp / len(pos) if pos else 1.0
+    specificity = tn / len(neg) if neg else 1.0
+    return {
+        "recall": recall,
+        "specificity": specificity,
+        "balanced_accuracy": (recall + specificity) / 2.0,
+        "tp": tp,
+        "tn": tn,
+        "fp": len(neg) - tn,
+        "fn": len(pos) - tp,
+        "inconclusive": len(results) - len(scored),
+    }
 
-    # Shuffle each group
-    random.shuffle(trigger)
-    random.shuffle(no_trigger)
 
-    # Calculate split points
-    n_trigger_test = max(1, int(len(trigger) * holdout))
-    n_no_trigger_test = max(1, int(len(no_trigger) * holdout))
-
-    # Split
-    test_set = trigger[:n_trigger_test] + no_trigger[:n_no_trigger_test]
-    train_set = trigger[n_trigger_test:] + no_trigger[n_no_trigger_test:]
-
-    return train_set, test_set
-
-
-def run_loop(
+def evaluate_description(
     eval_set: list[dict],
     skill_path: Path,
     description_override: str | None,
     num_workers: int,
     timeout: int,
-    max_iterations: int,
     runs_per_query: int,
     trigger_threshold: float,
-    holdout: float,
     model: str,
     verbose: bool,
-    live_report_path: Path | None = None,
     log_dir: Path | None = None,
+    *,
+    propose: bool = False,
+    isolated: bool = True,
 ) -> dict:
-    """Run the eval + improvement loop."""
-    project_root = find_project_root()
+    """Evaluate one skill description and optionally propose an improvement."""
+
     name, original_description, content = parse_skill_md(skill_path)
     current_description = description_override or original_description
 
-    # Split into train/test if holdout > 0
-    if holdout > 0:
-        train_set, test_set = split_eval_set(eval_set, holdout)
-        if verbose:
-            print(f"Split: {len(train_set)} train, {len(test_set)} test (holdout={holdout})", file=sys.stderr)
-    else:
-        train_set = eval_set
-        test_set = []
-
-    history = []
-    exit_reason = "unknown"
-
-    for iteration in range(1, max_iterations + 1):
-        if verbose:
-            print(f"\n{'='*60}", file=sys.stderr)
-            print(f"Iteration {iteration}/{max_iterations}", file=sys.stderr)
-            print(f"Description: {current_description}", file=sys.stderr)
-            print(f"{'='*60}", file=sys.stderr)
-
-        # Evaluate train + test together in one batch for parallelism
-        all_queries = train_set + test_set
-        t0 = time.time()
-        all_results = run_eval(
-            eval_set=all_queries,
-            skill_name=name,
-            description=current_description,
-            num_workers=num_workers,
-            timeout=timeout,
-            project_root=project_root,
-            runs_per_query=runs_per_query,
-            trigger_threshold=trigger_threshold,
-            model=model,
-        )
-        eval_elapsed = time.time() - t0
-
-        # Split results back into train/test by matching queries
-        train_queries_set = {q["query"] for q in train_set}
-        train_result_list = [r for r in all_results["results"] if r["query"] in train_queries_set]
-        test_result_list = [r for r in all_results["results"] if r["query"] not in train_queries_set]
-
-        train_passed = sum(1 for r in train_result_list if r["pass"])
-        train_total = len(train_result_list)
-        train_summary = {"passed": train_passed, "failed": train_total - train_passed, "total": train_total}
-        train_results = {"results": train_result_list, "summary": train_summary}
-
-        if test_set:
-            test_passed = sum(1 for r in test_result_list if r["pass"])
-            test_total = len(test_result_list)
-            test_summary = {"passed": test_passed, "failed": test_total - test_passed, "total": test_total}
-            test_results = {"results": test_result_list, "summary": test_summary}
-        else:
-            test_results = None
-            test_summary = None
-
-        history.append({
-            "iteration": iteration,
-            "description": current_description,
-            "train_passed": train_summary["passed"],
-            "train_failed": train_summary["failed"],
-            "train_total": train_summary["total"],
-            "train_results": train_results["results"],
-            "test_passed": test_summary["passed"] if test_summary else None,
-            "test_failed": test_summary["failed"] if test_summary else None,
-            "test_total": test_summary["total"] if test_summary else None,
-            "test_results": test_results["results"] if test_results else None,
-            # For backward compat with report generator
-            "passed": train_summary["passed"],
-            "failed": train_summary["failed"],
-            "total": train_summary["total"],
-            "results": train_results["results"],
-        })
-
-        # Write live report if path provided
-        if live_report_path:
-            partial_output = {
-                "original_description": original_description,
-                "best_description": current_description,
-                "best_score": "in progress",
-                "iterations_run": len(history),
-                "holdout": holdout,
-                "train_size": len(train_set),
-                "test_size": len(test_set),
-                "history": history,
-            }
-            live_report_path.write_text(generate_html(partial_output, auto_refresh=True, skill_name=name))
-
-        if verbose:
-            def print_eval_stats(label, results, elapsed):
-                pos = [r for r in results if r["should_trigger"]]
-                neg = [r for r in results if not r["should_trigger"]]
-                tp = sum(r["triggers"] for r in pos)
-                pos_runs = sum(r["runs"] for r in pos)
-                fn = pos_runs - tp
-                fp = sum(r["triggers"] for r in neg)
-                neg_runs = sum(r["runs"] for r in neg)
-                tn = neg_runs - fp
-                total = tp + tn + fp + fn
-                precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
-                recall = tp / (tp + fn) if (tp + fn) > 0 else 1.0
-                accuracy = (tp + tn) / total if total > 0 else 0.0
-                print(f"{label}: {tp+tn}/{total} correct, precision={precision:.0%} recall={recall:.0%} accuracy={accuracy:.0%} ({elapsed:.1f}s)", file=sys.stderr)
-                for r in results:
-                    status = "PASS" if r["pass"] else "FAIL"
-                    rate_str = f"{r['triggers']}/{r['runs']}"
-                    print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:60]}", file=sys.stderr)
-
-            print_eval_stats("Train", train_results["results"], eval_elapsed)
-            if test_summary:
-                print_eval_stats("Test ", test_results["results"], 0)
-
-        if train_summary["failed"] == 0:
-            exit_reason = f"all_passed (iteration {iteration})"
-            if verbose:
-                print(f"\nAll train queries passed on iteration {iteration}!", file=sys.stderr)
-            break
-
-        if iteration == max_iterations:
-            exit_reason = f"max_iterations ({max_iterations})"
-            if verbose:
-                print(f"\nMax iterations reached ({max_iterations}).", file=sys.stderr)
-            break
-
-        # Improve the description based on train results
-        if verbose:
-            print(f"\nImproving description...", file=sys.stderr)
-
-        t0 = time.time()
-        # Strip test scores from history so improvement model can't see them
-        blinded_history = [
-            {k: v for k, v in h.items() if not k.startswith("test_")}
-            for h in history
-        ]
-        new_description = improve_description(
-            skill_name=name,
-            skill_content=content,
-            current_description=current_description,
-            eval_results=train_results,
-            history=blinded_history,
-            model=model,
-            log_dir=log_dir,
-            iteration=iteration,
-        )
-        improve_elapsed = time.time() - t0
-
-        if verbose:
-            print(f"Proposed ({improve_elapsed:.1f}s): {new_description}", file=sys.stderr)
-
-        current_description = new_description
-
-    # Find the best iteration by TEST score (or train if no test set)
-    if test_set:
-        best = max(history, key=lambda h: h["test_passed"] or 0)
-        best_score = f"{best['test_passed']}/{best['test_total']}"
-    else:
-        best = max(history, key=lambda h: h["train_passed"])
-        best_score = f"{best['train_passed']}/{best['train_total']}"
+    # Stable internal IDs — never trust external "id" fields
+    for idx, item in enumerate(eval_set):
+        item["_eval_id"] = idx
 
     if verbose:
-        print(f"\nExit reason: {exit_reason}", file=sys.stderr)
-        print(f"Best score: {best_score} (iteration {best['iteration']})", file=sys.stderr)
+        print(f"Evaluating: {current_description}", file=sys.stderr)
+
+    t0 = time.time()
+    results = run_eval(
+        eval_set=eval_set,
+        skill_name=name,
+        description=current_description,
+        num_workers=num_workers,
+        timeout=timeout,
+        runs_per_query=runs_per_query,
+        trigger_threshold=trigger_threshold,
+        model=model,
+        isolated=isolated,
+    )
+    elapsed = time.time() - t0
+
+    exit_reason = "completed"
+    candidate_description = None
+
+    # -- Infra / preflight failures abort before candidate generation -------
+    if "error" in results:
+        exit_reason = f"preflight_failed: {results['error']}"
+        if verbose:
+            print(f"\n{exit_reason}", file=sys.stderr)
+        return {
+            "exit_reason": exit_reason,
+            "evaluated_description": current_description,
+            "metrics": None,
+            "results": results.get("results", []),
+            "candidate_description": None,
+        }
+
+    any_inconclusive = any(
+        r.get("eval_status") == "inconclusive" for r in results["results"]
+    )
+    if any_inconclusive:
+        n = sum(1 for r in results["results"] if r.get("eval_status") == "inconclusive")
+        exit_reason = f"inconclusive_results ({n} queries)"
+        if verbose:
+            print(f"\n{n} queries inconclusive — infrastructure errors, aborting.", file=sys.stderr)
+        return {
+            "exit_reason": exit_reason,
+            "evaluated_description": current_description,
+            "metrics": None,
+            "results": results["results"],
+            "candidate_description": None,
+        }
+
+    # -- Compute metrics ----------------------------------------------------
+    metrics = _calc_metrics(results["results"])
+
+    if verbose:
+        ba = metrics["balanced_accuracy"]
+        print(
+            f"\nResults: {metrics['tp'] + metrics['tn']}/{len(results['results'])} correct, "
+            f"balanced_acc={ba:.1%} ({elapsed:.1f}s)",
+            file=sys.stderr,
+        )
+        for r in results["results"]:
+            status = "PASS" if r["pass"] else "FAIL"
+            vr = r.get("valid_runs", r.get("runs", 0))
+            rate_str = f"{r['triggers']}/{vr}"
+            e_status = r.get("eval_status", "ok")
+            tag = f" [{e_status}]" if e_status != "ok" else ""
+            print(
+                f"  [{status}{tag}] rate={rate_str} expected={r['should_trigger']}: "
+                f"{r['query'][:80]}",
+                file=sys.stderr,
+            )
+
+    # -- Optionally propose a candidate improvement -------------------------
+    candidate_description = None
+    candidate_error = None
+
+    if propose:
+        if verbose:
+            print("\nGenerating candidate description...", file=sys.stderr)
+        t1 = time.time()
+        try:
+            train_wrapper = {"results": results["results"], "summary": results["summary"]}
+            candidate_description = improve_description(
+                skill_name=name,
+                skill_content=content,
+                current_description=current_description,
+                eval_results=train_wrapper,
+                history=[],
+                model=model,
+                log_dir=log_dir,
+                iteration=1,
+            )
+            if verbose:
+                print(f"Candidate ({time.time() - t1:.1f}s): {candidate_description}", file=sys.stderr)
+        except Exception as exc:
+            candidate_error = str(exc)
+            if verbose:
+                print(f"Candidate generation FAILED: {exc}", file=sys.stderr)
 
     return {
         "exit_reason": exit_reason,
-        "original_description": original_description,
-        "best_description": best["description"],
-        "best_score": best_score,
-        "best_train_score": f"{best['train_passed']}/{best['train_total']}",
-        "best_test_score": f"{best['test_passed']}/{best['test_total']}" if test_set else None,
-        "final_description": current_description,
-        "iterations_run": len(history),
-        "holdout": holdout,
-        "train_size": len(train_set),
-        "test_size": len(test_set),
-        "history": history,
+        "evaluated_description": current_description,
+        "metrics": metrics,
+        "results": results["results"],
+        "candidate_description": candidate_description,
+        "candidate_error": candidate_error,
     }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run eval + improve loop")
+# ======================================================================
+# CLI
+# ======================================================================
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Evaluate a skill description against trigger queries"
+    )
     parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
     parser.add_argument("--skill-path", required=True, help="Path to skill directory")
-    parser.add_argument("--description", default=None, help="Override starting description")
-    parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
-    parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
-    parser.add_argument("--max-iterations", type=int, default=5, help="Max improvement iterations")
-    parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
+    parser.add_argument("--description", default=None, help="Override description to evaluate")
+    parser.add_argument("--num-workers", type=int, default=2, help="Number of parallel workers")
+    parser.add_argument("--timeout", type=int, default=60, help="Timeout per query (seconds)")
+    parser.add_argument("--runs-per-query", type=int, default=3, help="Runs per query")
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
-    parser.add_argument("--holdout", type=float, default=0.4, help="Fraction of eval set to hold out for testing (0 to disable)")
-    parser.add_argument("--model", required=True, help="Model for improvement")
+    parser.add_argument("--model", required=True, help="Model for opencode run (provider/model)")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
-    parser.add_argument("--report", default="auto", help="Generate HTML report at this path (default: 'auto' for temp file, 'none' to disable)")
-    parser.add_argument("--results-dir", default=None, help="Save all outputs (results.json, report.html, log.txt) to a timestamped subdirectory here")
+    parser.add_argument("--isolated", action="store_true", default=True, help=argparse.SUPPRESS)
+    parser.add_argument("--no-isolated", action="store_true", help="Debug: use real HOME (may load global skills; not recommended)")
+    parser.add_argument("--propose", action="store_true", help="Generate a candidate improved description (LLM call)")
+    parser.add_argument("--report", default="none", help="Generate HTML report (default: 'none', 'auto' for temp file)")
+    parser.add_argument("--results-dir", default=None, help="Save results to timestamped subdirectory")
     args = parser.parse_args()
+
+    if args.no_isolated:
+        args.isolated = False
 
     eval_set = json.loads(Path(args.eval_set).read_text())
     skill_path = Path(args.skill_path)
@@ -267,58 +225,76 @@ def main():
 
     name, _, _ = parse_skill_md(skill_path)
 
-    # Set up live report path
+    # Live report
+    live_report_path = None
     if args.report != "none":
         if args.report == "auto":
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            live_report_path = Path(tempfile.gettempdir()) / f"skill_description_report_{skill_path.name}_{timestamp}.html"
+            live_report_path = (
+                Path(tempfile.gettempdir())
+                / f"skill_description_eval_{skill_path.name}_{timestamp}.html"
+            )
         else:
             live_report_path = Path(args.report)
-        # Open the report immediately so the user can watch
-        live_report_path.write_text("<html><body><h1>Starting optimization loop...</h1><meta http-equiv='refresh' content='5'></body></html>")
+        live_report_path.write_text(
+            "<html><body><h1>Evaluating skill description...</h1>"
+            "<meta http-equiv='refresh' content='5'></body></html>"
+        )
         webbrowser.open(str(live_report_path))
-    else:
-        live_report_path = None
 
-    # Determine output directory (create before run_loop so logs can be written)
+    # Results directory
+    results_dir = None
+    log_dir = None
     if args.results_dir:
         timestamp = time.strftime("%Y-%m-%d_%H%M%S")
         results_dir = Path(args.results_dir) / timestamp
         results_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        results_dir = None
+        log_dir = results_dir / "logs"
 
-    log_dir = results_dir / "logs" if results_dir else None
-
-    output = run_loop(
+    output = evaluate_description(
         eval_set=eval_set,
         skill_path=skill_path,
         description_override=args.description,
         num_workers=args.num_workers,
         timeout=args.timeout,
-        max_iterations=args.max_iterations,
         runs_per_query=args.runs_per_query,
         trigger_threshold=args.trigger_threshold,
-        holdout=args.holdout,
         model=args.model,
         verbose=args.verbose,
-        live_report_path=live_report_path,
         log_dir=log_dir,
+        propose=args.propose,
+        isolated=args.isolated,
     )
 
-    # Save JSON output
     json_output = json.dumps(output, indent=2)
     print(json_output)
+
     if results_dir:
         (results_dir / "results.json").write_text(json_output)
 
-    # Write final HTML report (without auto-refresh)
     if live_report_path:
-        live_report_path.write_text(generate_html(output, auto_refresh=False, skill_name=name))
+        single_iter = [{
+            "iteration": 1,
+            "description": output["evaluated_description"],
+            "passed": sum(1 for r in output["results"] if r["pass"]),
+            "failed": sum(1 for r in output["results"] if not r["pass"]),
+            "total": len(output["results"]),
+            "results": output["results"],
+        }]
+        report_data = {
+            "original_description": output["evaluated_description"],
+            "best_description": output["evaluated_description"],
+            "best_score": f"{output['metrics']['tp'] + output['metrics']['tn']}" if output["metrics"] else "N/A",
+            "iterations_run": 1,
+            "history": single_iter,
+            "candidate_description": output.get("candidate_description"),
+            "candidate_error": output.get("candidate_error"),
+        }
+        live_report_path.write_text(generate_html(report_data, auto_refresh=False, skill_name=name))
         print(f"\nReport: {live_report_path}", file=sys.stderr)
 
     if results_dir and live_report_path:
-        (results_dir / "report.html").write_text(generate_html(output, auto_refresh=False, skill_name=name))
+        (results_dir / "report.html").write_text(generate_html(report_data, auto_refresh=False, skill_name=name))
 
     if results_dir:
         print(f"Results saved to: {results_dir}", file=sys.stderr)

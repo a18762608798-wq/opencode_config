@@ -7,7 +7,7 @@ Skill（技能）是 OpenCode 中的**可复用能力模块**。它像是给 Age
 ### Skill vs Agent
 
 | 维度 | Agent | Skill |
-|------|-------|-------|
+| ------ | ------- | ------- |
 | 定位 | 定义「谁来做」 | 定义「会做什么」 |
 | 复用 | Agent 内使用 | 跨 Agent 复用 |
 | 触发 | 用户手动选择 | Agent 按需加载 |
@@ -25,17 +25,18 @@ opencode/skills/
 └── database_migration/SKILL.md
 ```
 
+> 现在opencode已经兼容claudecode和codex, 对于本身字段依赖相关路径的直接放在其他路径就可以了.
+
 ## 内置 Skills
 
 OpenCode 自带一些常用 Skills：
 
 | Skill | 功能 |
-|-------|------|
+| ------- | ------ |
 | `file-editor` | 文件编辑能力 |
 | `code-searcher` | 代码搜索能力 |
 | `command-runner` | 命令执行能力 |
 | `web-researcher` | 网络搜索能力 |
-
 
 ## Skill 文件格式
 

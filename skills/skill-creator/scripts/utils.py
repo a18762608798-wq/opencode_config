@@ -1,47 +1,31 @@
 """Shared utilities for skill-creator scripts."""
 
+import re
 from pathlib import Path
 
+import yaml
+
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 
 
 def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
-    """Parse a SKILL.md file, returning (name, description, full_content)."""
-    content = (skill_path / "SKILL.md").read_text()
-    lines = content.split("\n")
+    """Parse SKILL.md, returning ``(name, description, full_content)``."""
+    content = (skill_path / "SKILL.md").read_text(encoding="utf-8")
 
-    if lines[0].strip() != "---":
-        raise ValueError("SKILL.md missing frontmatter (no opening ---)")
+    m = _FRONTMATTER_RE.search(content)
+    if not m:
+        raise ValueError("SKILL.md is missing YAML frontmatter (--- ... ---)")
 
-    end_idx = None
-    for i, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
-            end_idx = i
-            break
+    frontmatter_text = m.group(1)
+    try:
+        fm = yaml.safe_load(frontmatter_text)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Invalid YAML in SKILL.md frontmatter: {exc}") from exc
 
-    if end_idx is None:
-        raise ValueError("SKILL.md missing frontmatter (no closing ---)")
+    if not isinstance(fm, dict):
+        raise ValueError("SKILL.md frontmatter must be a YAML mapping")
 
-    name = ""
-    description = ""
-    frontmatter_lines = lines[1:end_idx]
-    i = 0
-    while i < len(frontmatter_lines):
-        line = frontmatter_lines[i]
-        if line.startswith("name:"):
-            name = line[len("name:"):].strip().strip('"').strip("'")
-        elif line.startswith("description:"):
-            value = line[len("description:"):].strip()
-            # Handle YAML multiline indicators (>, |, >-, |-)
-            if value in (">", "|", ">-", "|-"):
-                continuation_lines: list[str] = []
-                i += 1
-                while i < len(frontmatter_lines) and (frontmatter_lines[i].startswith("  ") or frontmatter_lines[i].startswith("\t")):
-                    continuation_lines.append(frontmatter_lines[i].strip())
-                    i += 1
-                description = " ".join(continuation_lines)
-                continue
-            else:
-                description = value.strip('"').strip("'")
-        i += 1
+    name = str(fm.get("name", "")).strip()
+    description = str(fm.get("description", "")).strip()
 
     return name, description, content
